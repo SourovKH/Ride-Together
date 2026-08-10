@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { env } from './config/env.js';
 import { healthRouter } from './routes/health.routes.js';
+import { rideRouter } from './routes/ride.routes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 export const createApp = () => {
@@ -18,6 +19,7 @@ export const createApp = () => {
 
   // Mount API routes
   app.use('/api', healthRouter);
+  app.use('/api/rides', rideRouter);
 
   // 404 Handler
   app.use((_req, res) => {

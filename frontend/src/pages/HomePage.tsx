@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { PlusCircle, LogIn, MapPin, Users, Zap, ShieldCheck } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 
@@ -97,21 +98,21 @@ export const HomePage: React.FC = () => {
           gap: '16px',
           justifyContent: 'center',
         }}>
-          <button
-            onClick={() => alert('Ride creation form will be available in Iteration 1!')}
+          <Link
+            to="/create"
             className="btn btn-primary"
-            style={{ padding: '16px 36px', fontSize: '1.1rem' }}
+            style={{ padding: '16px 36px', fontSize: '1.1rem', textDecoration: 'none' }}
           >
             <PlusCircle size={22} /> Create a Ride
-          </button>
+          </Link>
 
-          <button
-            onClick={() => alert('Join ride screen will be available in Iteration 2!')}
+          <Link
+            to="/join"
             className="btn btn-secondary"
-            style={{ padding: '16px 36px', fontSize: '1.1rem' }}
+            style={{ padding: '16px 36px', fontSize: '1.1rem', textDecoration: 'none' }}
           >
             <LogIn size={22} /> Join a Ride
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -195,8 +196,8 @@ export const HomePage: React.FC = () => {
         fontSize: '0.92rem',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Iteration 0 Status:</span>
-          <span className="badge badge-live">Postgres & Redis Ready</span>
+          <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Iteration 2 Status:</span>
+          <span className="badge badge-live">Ride Creation & Join Active</span>
         </div>
         <div style={{ color: 'var(--text-secondary)' }}>
           Backend API: {healthStatus?.status === 'ok' ? 'Connected (5000)' : 'Connecting...'} | Frontend: Vite (5173)

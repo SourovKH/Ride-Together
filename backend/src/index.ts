@@ -1,12 +1,13 @@
 import { createApp } from './app.js';
 import { env } from './config/env.js';
-import { pgPool } from './db/postgres.js';
+import { initDatabase, pgPool } from './db/postgres.js';
 import { redisClient } from './db/redis.js';
 
 const app = createApp();
 
-const server = app.listen(env.PORT, () => {
+const server = app.listen(env.PORT, async () => {
   console.log(`🚀 RideTogether Backend listening on port ${env.PORT} [${env.NODE_ENV}]`);
+  await initDatabase();
 });
 
 const gracefulShutdown = async (signal: string) => {
