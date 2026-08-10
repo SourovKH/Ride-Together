@@ -1,0 +1,15 @@
+{
+  "name": "ride-together-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Real-time group riding web application monorepo",
+  "scripts": {
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build"
+  }
+}
