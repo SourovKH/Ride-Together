@@ -116,4 +116,16 @@ export class RideService {
       participants,
     };
   }
+
+  static async leaveRide(code: string, participantId: string) {
+    const ride = await RideRepository.findByCode(code);
+    if (!ride) {
+      const err = new Error('Ride not found');
+      (err as any).statusCode = 404;
+      throw err;
+    }
+
+    const updated = await ParticipantRepository.updateParticipantStatus(participantId, 'LEFT');
+    return updated;
+  }
 }

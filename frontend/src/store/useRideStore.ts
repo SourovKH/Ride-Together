@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api, CreateRidePayload, JoinRidePayload, RideDetails } from '../services/api';
+import { api, CreateRidePayload, JoinRidePayload, Participant, RideDetails } from '../services/api';
 
 interface RideSession {
   participantId: string;
@@ -19,6 +19,9 @@ interface RideState {
   fetchRide: (code: string) => Promise<RideDetails | null>;
   createRide: (payload: CreateRidePayload) => Promise<string>;
   joinRide: (code: string, payload: JoinRidePayload) => Promise<string>;
+  leaveRide: (code: string, participantId: string) => Promise<void>;
+  addParticipant: (participant: Participant) => void;
+  removeParticipant: (participantId: string) => void;
   clearSession: () => void;
   clearError: () => void;
 }
@@ -106,6 +109,46 @@ export const useRideStore = create<RideState>((set) => ({
       set({ error: err.message || 'Failed to join ride', isLoading: false });
       throw err;
     }
+  },
+
+  leaveRide: async (code: string, participantId: string) => {
+    try {
+      await api.leaveRide(code, participantId);
+    } catch (err: any) {
+      console.error('Error leaving ride REST:', err);
+    } finally {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      set({ session: null, currentRide: null });
+    }
+  },
+
+  addParticipant: (participant: Participant) => {
+    set((state) => {
+      if (!state.currentRide) return state;
+      const exists = state.currentRide.participants.some((p) => p.id === participant.id);
+      const updatedParticipants = exists
+        ? state.currentRide.participants.map((p) => (p.id === participant.id ? participant : p))
+        : [...state.currentRide.participants, participant];
+
+      return {
+        currentRide: {
+          ...state.currentRide,
+          participants: updatedParticipants,
+        },
+      };
+    });
+  },
+
+  removeParticipant: (participantId: string) => {
+    set((state) => {
+      if (!state.currentRide) return state;
+      return {
+        currentRide: {
+          ...state.currentRide,
+          participants: state.currentRide.participants.filter((p) => p.id !== participantId),
+        },
+      };
+    });
   },
 
   clearSession: () => {

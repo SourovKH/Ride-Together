@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { RideService } from './ride.service.js';
+import { ParticipantRepository } from '../participants/participant.repository.js';
+import { rideGateway } from '../../index.js';
 
 export class RideController {
   static async createRide(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -18,6 +20,13 @@ export class RideController {
     try {
       const { code } = req.params;
       const response = await RideService.joinRide(code, req.body);
+
+      // Broadcast PARTICIPANT_JOINED event to all connected sockets in room
+      const participant = await ParticipantRepository.findParticipantById(response.participantId);
+      if (participant) {
+        rideGateway.getIO().to(`ride:${code.toUpperCase()}`).emit('PARTICIPANT_JOINED', participant);
+      }
+
       res.status(200).json({
         success: true,
         data: response,
@@ -31,6 +40,24 @@ export class RideController {
     try {
       const { code } = req.params;
       const response = await RideService.getRideByCode(code);
+      res.status(200).json({
+        success: true,
+        data: response,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async leaveRide(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { code } = req.params;
+      const { participantId } = req.body;
+      const response = await RideService.leaveRide(code, participantId);
+
+      // Broadcast PARTICIPANT_LEFT event to all connected sockets in room
+      rideGateway.getIO().to(`ride:${code.toUpperCase()}`).emit('PARTICIPANT_LEFT', { participantId });
+
       res.status(200).json({
         success: true,
         data: response,

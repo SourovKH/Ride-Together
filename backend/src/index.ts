@@ -1,12 +1,16 @@
+import { createServer } from 'http';
 import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { initDatabase, pgPool } from './db/postgres.js';
 import { redisClient } from './db/redis.js';
+import { RideGateway } from './websocket/ride.gateway.js';
 
 const app = createApp();
+const server = createServer(app);
+export const rideGateway = new RideGateway(server);
 
-const server = app.listen(env.PORT, async () => {
-  console.log(`🚀 RideTogether Backend listening on port ${env.PORT} [${env.NODE_ENV}]`);
+server.listen(env.PORT, async () => {
+  console.log(`🚀 RideTogether Backend & WebSockets listening on port ${env.PORT} [${env.NODE_ENV}]`);
   await initDatabase();
 });
 

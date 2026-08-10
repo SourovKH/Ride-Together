@@ -102,4 +102,13 @@ export const api = {
     });
     return handleResponse<JoinRideResponseData>(res);
   },
+
+  async leaveRide(code: string, participantId: string): Promise<Participant> {
+    const res = await fetch(`${API_BASE_URL}/rides/${encodeURIComponent(code)}/leave`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ participantId }),
+    });
+    return handleResponse<Participant>(res);
+  },
 };

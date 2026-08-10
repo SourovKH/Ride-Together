@@ -9,7 +9,7 @@ export class ParticipantRepository {
   ): Promise<Participant> {
     const query = `
       INSERT INTO participants (ride_id, name, role, status)
-      VALUES ($1, $2, $3, 'JOINED')
+      VALUES ($1::UUID, $2, $3, 'JOINED')
       RETURNING id, ride_id as "rideId", name, role, status, joined_at as "joinedAt"
     `;
     const result = await pgPool.query(query, [rideId, name, role]);
@@ -20,7 +20,7 @@ export class ParticipantRepository {
     const query = `
       SELECT id, ride_id as "rideId", name, role, status, joined_at as "joinedAt"
       FROM participants
-      WHERE id = $1
+      WHERE id = $1::UUID
     `;
     const result = await pgPool.query(query, [id]);
     return result.rows[0] || null;
@@ -30,10 +30,21 @@ export class ParticipantRepository {
     const query = `
       SELECT id, ride_id as "rideId", name, role, status, joined_at as "joinedAt"
       FROM participants
-      WHERE ride_id = $1 AND status = 'JOINED'
+      WHERE ride_id = $1::UUID AND status = 'JOINED'
       ORDER BY joined_at ASC
     `;
     const result = await pgPool.query(query, [rideId]);
     return result.rows;
+  }
+
+  static async updateParticipantStatus(id: string, status: 'JOINED' | 'LEFT' | 'REMOVED'): Promise<Participant | null> {
+    const query = `
+      UPDATE participants
+      SET status = $1::VARCHAR, left_at = CASE WHEN $1::VARCHAR IN ('LEFT', 'REMOVED') THEN NOW() ELSE NULL END
+      WHERE id = $2::UUID
+      RETURNING id, ride_id as "rideId", name, role, status, joined_at as "joinedAt"
+    `;
+    const result = await pgPool.query(query, [status, id]);
+    return result.rows[0] || null;
   }
 }

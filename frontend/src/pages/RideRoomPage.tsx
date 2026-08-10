@@ -12,13 +12,18 @@ import {
   RefreshCw,
   LogOut,
   Sparkles,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 import { useRideStore } from '../store/useRideStore';
+import { useRideSocket } from '../hooks/useRideSocket';
 
 export const RideRoomPage: React.FC = () => {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
-  const { currentRide, fetchRide, session, clearSession, isLoading } = useRideStore();
+  const { currentRide, fetchRide, session, leaveRide, isLoading } = useRideStore();
+
+  const { isConnected } = useRideSocket(code, session?.participantId);
 
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -44,9 +49,12 @@ export const RideRoomPage: React.FC = () => {
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
-  const handleLeave = () => {
-    clearSession();
-    navigate('/');
+  const handleLeave = async () => {
+    if (!currentRide || !session) return;
+    if (window.confirm('Are you sure you want to leave this ride room?')) {
+      await leaveRide(currentRide.code, session.participantId);
+      navigate('/');
+    }
   };
 
   if (isLoading && !currentRide) {
@@ -87,9 +95,24 @@ export const RideRoomPage: React.FC = () => {
         }}
       >
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px', marginBottom: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
             <span className="badge badge-live" style={{ padding: '6px 14px' }}>
               <span className="dot" /> Status: {currentRide.status}
+            </span>
+            <span
+              className="badge"
+              style={{
+                backgroundColor: isConnected ? 'rgba(22, 163, 74, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                border: isConnected ? '1px solid rgba(22, 163, 74, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+                color: isConnected ? 'var(--accent-emerald)' : '#f87171',
+                padding: '6px 14px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              {isConnected ? <Wifi size={14} /> : <WifiOff size={14} />}
+              {isConnected ? 'Real-Time Sync Active' : 'Connecting Sync...'}
             </span>
             {isUserOrganizer && (
               <span
