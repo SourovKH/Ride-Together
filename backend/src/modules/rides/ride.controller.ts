@@ -124,4 +124,17 @@ export class RideController {
       next(error);
     }
   }
+
+  static async getRoute(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { code } = req.params;
+      const routeData = await RideService.getRideRoute(code);
+      res.status(200).json({
+        success: true,
+        data: routeData,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }

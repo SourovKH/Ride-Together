@@ -82,6 +82,12 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return json.data as T;
 }
 
+export interface RouteResult {
+  distanceKm: number;
+  durationMinutes: number;
+  geometry: [number, number][];
+}
+
 export const api = {
   async getHealth(): Promise<HealthResponse> {
     const res = await fetch(`${API_BASE_URL}/health`);
@@ -143,5 +149,10 @@ export const api = {
   async getRideLocations(code: string): Promise<Record<string, RiderLocationData>> {
     const res = await fetch(`${API_BASE_URL}/rides/${encodeURIComponent(code)}/locations`);
     return handleResponse<Record<string, RiderLocationData>>(res);
+  },
+
+  async getRideRoute(code: string): Promise<RouteResult> {
+    const res = await fetch(`${API_BASE_URL}/rides/${encodeURIComponent(code)}/route`);
+    return handleResponse<RouteResult>(res);
   },
 };

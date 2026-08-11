@@ -49,5 +49,8 @@ rideRouter.post('/:code/end', validateRequest(actionRideSchema), RideController.
 // GET /api/rides/:code/locations - Fetch live rider locations from Redis
 rideRouter.get('/:code/locations', RideController.getLocations);
 
+// GET /api/rides/:code/route - Fetch route polyline, distance, and duration
+rideRouter.get('/:code/route', RideController.getRoute);
+
 
 

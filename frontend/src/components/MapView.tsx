@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { LocationInput, Participant, RiderLocationData } from '../services/api';
@@ -9,10 +9,11 @@ interface MapViewProps {
   participants: Participant[];
   participantLocations: Record<string, RiderLocationData>;
   currentParticipantId?: string;
+  routeGeometry?: [number, number][];
 }
 
 function getHaversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371; // Earth radius in km
+  const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
   const a =
@@ -34,12 +35,39 @@ function getTimeAgo(timestamp: number): string {
   return `${Math.floor(minutes / 60)}h ago`;
 }
 
+/** Fetch an OSRM driving route between two points. Returns [lng, lat][] or null on error. */
+async function fetchOsrmRoute(
+  fromLat: number,
+  fromLng: number,
+  toLat: number,
+  toLng: number
+): Promise<[number, number][] | null> {
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    if (!data.routes || data.routes.length === 0) return null;
+
+    return data.routes[0].geometry.coordinates as [number, number][];
+  } catch {
+    return null;
+  }
+}
+
 export const MapView: React.FC<MapViewProps> = ({
   startLocation,
   destinationLocation,
   participants,
   participantLocations,
   currentParticipantId,
+  routeGeometry,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const [map, setMap] = useState<maplibregl.Map | null>(null);
@@ -48,16 +76,21 @@ export const MapView: React.FC<MapViewProps> = ({
   const startMarkerRef = useRef<maplibregl.Marker | null>(null);
   const destMarkerRef = useRef<maplibregl.Marker | null>(null);
 
+  // Cache the rider-to-source route geometry so we don't re-fetch on every render
+  const riderRouteRef = useRef<[number, number][] | null>(null);
+  const riderRouteFetchKeyRef = useRef<string>('');
+  const fetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const startLng = Number(startLocation.longitude) || 0;
   const startLat = Number(startLocation.latitude) || 0;
   const destLng = Number(destinationLocation.longitude) || 0;
   const destLat = Number(destinationLocation.latitude) || 0;
 
-  // Initialize Map
+  // ─── Initialize MapLibre Map ───
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
-    console.log('🗺️ Initializing MapLibre GL map at start coords:', [startLng, startLat]);
+    console.log('🗺️ Initializing MapLibre GL map:', [startLng, startLat]);
 
     const instance = new maplibregl.Map({
       container: mapContainerRef.current,
@@ -87,32 +120,67 @@ export const MapView: React.FC<MapViewProps> = ({
         ],
       },
       center: [startLng, startLat],
-      zoom: 13,
+      zoom: 12,
     });
 
     instance.addControl(new maplibregl.NavigationControl(), 'top-right');
 
     instance.on('load', () => {
       console.log('🗺️ MapLibre GL map fully loaded!');
+
+      // Add GeoJSON sources for route lines
+      instance.addSource('main-route-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+      instance.addSource('rider-to-source-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+
+      // Main route: Source → Destination (bold neon blue)
+      instance.addLayer({
+        id: 'main-route-layer',
+        type: 'line',
+        source: 'main-route-source',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': '#38bdf8',
+          'line-width': 6,
+          'line-opacity': 0.95,
+        },
+      });
+
+      // Rider → Source route (dashed emerald green)
+      instance.addLayer({
+        id: 'rider-to-source-layer',
+        type: 'line',
+        source: 'rider-to-source-source',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': '#10b981',
+          'line-width': 4,
+          'line-dasharray': [2, 2],
+          'line-opacity': 0.9,
+        },
+      });
+
+
+
       setMap(instance);
     });
-
-    // Fallback setMap if load fires fast
-    setMap(instance);
 
     return () => {
       instance.remove();
       setMap(null);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Render Start & Destination Markers
+  // ─── Render Start & Destination Markers ───
   useEffect(() => {
     if (!map) return;
 
-    console.log('📍 Adding/Updating Start & Destination Markers:', { startLng, startLat, destLng, destLat });
-
-    // Start Marker Element
     if (!startMarkerRef.current) {
       const el = document.createElement('div');
       el.className = 'custom-map-marker start-marker';
@@ -139,7 +207,6 @@ export const MapView: React.FC<MapViewProps> = ({
       startMarkerRef.current.setLngLat([startLng, startLat]);
     }
 
-    // Destination Marker Element
     if (!destMarkerRef.current) {
       const el = document.createElement('div');
       el.className = 'custom-map-marker dest-marker';
@@ -167,7 +234,7 @@ export const MapView: React.FC<MapViewProps> = ({
     }
   }, [map, startLng, startLat, destLng, destLat, startLocation.name, destinationLocation.name]);
 
-  // Update Rider Markers in real-time
+  // ─── Update Rider Markers ───
   useEffect(() => {
     if (!map) return;
 
@@ -182,10 +249,8 @@ export const MapView: React.FC<MapViewProps> = ({
       }
     });
 
-    // Find current user's location data if available
     const selfLoc = currentParticipantId ? participantLocations[currentParticipantId] : null;
 
-    // Render marker for EVERY participant (using live GPS or start location fallback)
     participants.forEach((participant) => {
       const liveLoc = participantLocations[participant.id];
       const lng = liveLoc ? Number(liveLoc.longitude) : startLng;
@@ -198,7 +263,6 @@ export const MapView: React.FC<MapViewProps> = ({
       const hasLiveGps = !!liveLoc;
       const isStale = liveLoc ? Date.now() - liveLoc.timestamp > 35000 : true;
 
-      // Distance away calculation
       let distanceText = 'N/A';
       if (!isSelf && selfLoc) {
         const dist = getHaversineDistanceKm(
@@ -215,7 +279,6 @@ export const MapView: React.FC<MapViewProps> = ({
       const statusColor = !hasLiveGps ? '#94a3b8' : isStale ? '#64748b' : isOrg ? '#f59e0b' : '#0284c7';
       const initial = participant.name.charAt(0).toUpperCase();
 
-      // Popup HTML
       const popupHtml = `
         <div style="color: #0f172a; padding: 6px; min-width: 150px;">
           <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 2px;">
@@ -237,7 +300,6 @@ export const MapView: React.FC<MapViewProps> = ({
       `;
 
       if (!activeMarkers[participant.id]) {
-        console.log(`👤 Creating map marker for ${participant.name} (${participant.id}) at [${lng}, ${lat}]`);
         const el = document.createElement('div');
         el.className = 'custom-map-marker rider-marker';
         el.style.width = '36px';
@@ -271,7 +333,6 @@ export const MapView: React.FC<MapViewProps> = ({
 
         activeMarkers[participant.id] = marker;
       } else {
-        // Update marker position & popup
         const marker = activeMarkers[participant.id];
         marker.setLngLat([lng, lat]);
         const popup = marker.getPopup();
@@ -282,23 +343,176 @@ export const MapView: React.FC<MapViewProps> = ({
     });
   }, [map, participants, participantLocations, currentParticipantId, startLng, startLat]);
 
+  // ─── Update Source → Destination Route ───
+  useEffect(() => {
+    if (!map || !map.isStyleLoaded()) return;
+
+    try {
+      const mainSrc = map.getSource('main-route-source') as maplibregl.GeoJSONSource | undefined;
+      if (!mainSrc) return;
+
+      const effectiveRoute =
+        routeGeometry && routeGeometry.length > 0
+          ? routeGeometry
+          : [
+              [startLng, startLat],
+              [destLng, destLat],
+            ];
+
+      console.log(`🗺️ Updating main route (source → dest): ${effectiveRoute.length} points`);
+
+      mainSrc.setData({
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: effectiveRoute,
+        },
+      });
+    } catch (err) {
+      console.warn('Error updating main route:', err);
+    }
+  }, [map, routeGeometry, startLng, startLat, destLng, destLat]);
+
+  // ─── Fetch & Render Rider → Source OSRM Routes (debounced) ───
+  const updateRiderToSourceRoute = useCallback(async () => {
+    if (!map || !map.isStyleLoaded()) return;
+
+    const r2sSrc = map.getSource('rider-to-source-source') as maplibregl.GeoJSONSource | undefined;
+    if (!r2sSrc) return;
+
+    // Get current rider's live location
+    const selfLoc = currentParticipantId ? participantLocations[currentParticipantId] : null;
+    if (!selfLoc) {
+      // No live location — clear the rider-to-source route
+      r2sSrc.setData({ type: 'FeatureCollection', features: [] });
+      return;
+    }
+
+    const riderLat = Number(selfLoc.latitude);
+    const riderLng = Number(selfLoc.longitude);
+    if (isNaN(riderLat) || isNaN(riderLng)) return;
+
+    // Construct a key to avoid re-fetching the same route
+    const fetchKey = `${riderLat.toFixed(4)},${riderLng.toFixed(4)}->${startLat.toFixed(4)},${startLng.toFixed(4)}`;
+
+    if (fetchKey === riderRouteFetchKeyRef.current && riderRouteRef.current) {
+      // Same position (within ~11m precision), reuse cached route
+      r2sSrc.setData({
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: riderRouteRef.current,
+        },
+      } as any);
+      return;
+    }
+
+    console.log(`🛤️ Fetching OSRM route: Rider (${riderLat.toFixed(4)}, ${riderLng.toFixed(4)}) → Source (${startLat.toFixed(4)}, ${startLng.toFixed(4)})`);
+
+    const osrmCoords = await fetchOsrmRoute(riderLat, riderLng, startLat, startLng);
+
+    if (osrmCoords && osrmCoords.length > 0) {
+      riderRouteRef.current = osrmCoords;
+      riderRouteFetchKeyRef.current = fetchKey;
+
+      r2sSrc.setData({
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: osrmCoords,
+        },
+      } as any);
+
+      console.log(`🛤️ Rider→Source OSRM route rendered: ${osrmCoords.length} points`);
+    } else {
+      // Fallback: draw a straight line
+      r2sSrc.setData({
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: [
+            [riderLng, riderLat],
+            [startLng, startLat],
+          ],
+        },
+      } as any);
+      console.log('🛤️ OSRM failed, drew straight-line fallback for rider→source');
+    }
+  }, [map, participantLocations, currentParticipantId, startLat, startLng]);
+
+  useEffect(() => {
+    // Debounce to avoid flooding OSRM on every location tick
+    if (fetchTimerRef.current) {
+      clearTimeout(fetchTimerRef.current);
+    }
+    fetchTimerRef.current = setTimeout(() => {
+      updateRiderToSourceRoute();
+    }, 2000); // Wait 2s after last location change
+
+    return () => {
+      if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current);
+    };
+  }, [updateRiderToSourceRoute]);
+
+
+
+  // ─── Recenter Map ───
   const handleRecenter = () => {
     if (!map) return;
 
-    const bounds = new maplibregl.LngLatBounds();
-    bounds.extend([startLng, startLat]);
-    bounds.extend([destLng, destLat]);
-
-    Object.values(participantLocations).forEach((loc) => {
-      bounds.extend([Number(loc.longitude), Number(loc.latitude)]);
-    });
-
-    map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 800 });
+    const selfLoc = currentParticipantId ? participantLocations[currentParticipantId] : null;
+    if (selfLoc) {
+      map.flyTo({
+        center: [Number(selfLoc.longitude), Number(selfLoc.latitude)],
+        zoom: 15,
+        duration: 800,
+      });
+    } else {
+      // Fallback to start location if no live GPS yet
+      map.flyTo({
+        center: [startLng, startLat],
+        zoom: 14,
+        duration: 800,
+      });
+    }
   };
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '420px', borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-glow)' }}>
       <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+
+      {/* Route Legend */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '12px',
+          left: '12px',
+          backgroundColor: 'rgba(15, 23, 42, 0.88)',
+          color: '#e2e8f0',
+          borderRadius: '10px',
+          padding: '10px 14px',
+          fontSize: '0.72rem',
+          backdropFilter: 'blur(8px)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '5px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ width: '20px', height: '3px', backgroundColor: '#38bdf8', borderRadius: '2px' }} />
+          <span>Source → Destination</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ width: '20px', height: '3px', backgroundColor: '#10b981', borderRadius: '2px', borderTop: '2px dashed #10b981', background: 'transparent' }} />
+          <span>You → Source</span>
+        </div>
+
+      </div>
 
       {/* Map Control Recenter Button */}
       <button

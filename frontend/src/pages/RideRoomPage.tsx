@@ -31,7 +31,18 @@ import { MapView } from '../components/MapView';
 export const RideRoomPage: React.FC = () => {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
-  const { currentRide, fetchRide, session, leaveRide, startRide, endRide, isLoading, participantLocations } = useRideStore();
+  const {
+    currentRide,
+    fetchRide,
+    session,
+    leaveRide,
+    startRide,
+    endRide,
+    isLoading,
+    participantLocations,
+    routeData,
+    fetchRideRoute,
+  } = useRideStore();
 
   // Geolocation tracking active ONLY when ride.status === 'ACTIVE'
   const isRideActive = currentRide?.status === 'ACTIVE';
@@ -52,8 +63,9 @@ export const RideRoomPage: React.FC = () => {
   useEffect(() => {
     if (code) {
       fetchRide(code);
+      fetchRideRoute(code);
     }
-  }, [code, fetchRide]);
+  }, [code, fetchRide, fetchRideRoute]);
 
   const handleCopyCode = () => {
     if (!currentRide) return;
@@ -213,8 +225,8 @@ export const RideRoomPage: React.FC = () => {
           {currentRide.name}
         </h1>
 
-        {/* Start & Destination */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', fontSize: '1rem', color: 'var(--text-secondary)' }}>
+        {/* Start, Destination & Route Summary */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '20px', fontSize: '1rem', color: 'var(--text-secondary)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <MapPin size={18} color="var(--accent-emerald)" />
             <span>Start: <strong style={{ color: 'var(--text-primary)' }}>{currentRide.start.name}</strong></span>
@@ -223,6 +235,17 @@ export const RideRoomPage: React.FC = () => {
             <Navigation size={18} color="var(--accent-amber)" />
             <span>Destination: <strong style={{ color: 'var(--text-primary)' }}>{currentRide.destination.name}</strong></span>
           </div>
+
+          {routeData && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span className="badge" style={{ backgroundColor: 'rgba(56, 189, 248, 0.12)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)', padding: '6px 12px', fontSize: '0.85rem' }}>
+                🛣️ <strong>{routeData.distanceKm} km</strong> route
+              </span>
+              <span className="badge" style={{ backgroundColor: 'rgba(168, 85, 247, 0.12)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.3)', padding: '6px 12px', fontSize: '0.85rem' }}>
+                ⏱️ <strong>~{routeData.durationMinutes} min</strong> drive
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -234,6 +257,7 @@ export const RideRoomPage: React.FC = () => {
           participants={currentRide.participants || []}
           participantLocations={participantLocations}
           currentParticipantId={session?.participantId}
+          routeGeometry={routeData?.geometry}
         />
       </div>
 

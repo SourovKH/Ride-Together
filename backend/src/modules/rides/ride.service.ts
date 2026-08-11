@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { ParticipantRepository } from '../participants/participant.repository.js';
 import { RideRepository } from './ride.repository.js';
+import { routingService } from '../routing/routing.service.js';
 import {
   CreateRideDto,
   CreateRideResponse,
@@ -179,5 +180,21 @@ export class RideService {
 
     await RideRepository.updateRideStatus(ride.id, 'COMPLETED');
     return await this.getRideByCode(code);
+  }
+
+  static async getRideRoute(code: string) {
+    const ride = await RideRepository.findByCode(code);
+    if (!ride) {
+      const err = new Error('Ride not found');
+      (err as any).statusCode = 404;
+      throw err;
+    }
+
+    return await routingService.getRoute(
+      ride.start.latitude,
+      ride.start.longitude,
+      ride.destination.latitude,
+      ride.destination.longitude
+    );
   }
 }

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api, CreateRidePayload, JoinRidePayload, Participant, RideDetails, RiderLocationData } from '../services/api';
+import { api, CreateRidePayload, JoinRidePayload, Participant, RideDetails, RiderLocationData, RouteResult } from '../services/api';
 
 interface RideSession {
   participantId: string;
@@ -13,6 +13,7 @@ interface RideState {
   currentRide: RideDetails | null;
   session: RideSession | null;
   participantLocations: Record<string, RiderLocationData>;
+  routeData: RouteResult | null;
   isLoading: boolean;
   error: string | null;
 
@@ -27,6 +28,7 @@ interface RideState {
   updateParticipantLocation: (location: RiderLocationData) => void;
   setParticipantLocations: (locations: Record<string, RiderLocationData>) => void;
   fetchRideLocations: (code: string) => Promise<void>;
+  fetchRideRoute: (code: string) => Promise<void>;
   addParticipant: (participant: Participant) => void;
   removeParticipant: (participantId: string) => void;
   clearSession: () => void;
@@ -48,6 +50,7 @@ export const useRideStore = create<RideState>((set) => ({
   currentRide: null,
   session: getInitialSession(),
   participantLocations: {},
+  routeData: null,
   isLoading: false,
   error: null,
 
@@ -202,6 +205,15 @@ export const useRideStore = create<RideState>((set) => ({
       set({ participantLocations: locations });
     } catch (err) {
       console.error('Error fetching ride locations:', err);
+    }
+  },
+
+  fetchRideRoute: async (code: string) => {
+    try {
+      const route = await api.getRideRoute(code);
+      set({ routeData: route });
+    } catch (err) {
+      console.error('Error fetching ride route:', err);
     }
   },
 
