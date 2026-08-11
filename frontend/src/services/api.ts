@@ -111,4 +111,22 @@ export const api = {
     });
     return handleResponse<Participant>(res);
   },
+
+  async startRide(code: string, participantId: string): Promise<RideDetails> {
+    const res = await fetch(`${API_BASE_URL}/rides/${encodeURIComponent(code)}/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ participantId }),
+    });
+    return handleResponse<RideDetails>(res);
+  },
+
+  async endRide(code: string, participantId: string): Promise<RideDetails> {
+    const res = await fetch(`${API_BASE_URL}/rides/${encodeURIComponent(code)}/end`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ participantId }),
+    });
+    return handleResponse<RideDetails>(res);
+  },
 };

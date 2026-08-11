@@ -22,19 +22,22 @@ export class RideGateway {
       console.log(`⚡ Socket connected: ${socket.id}`);
 
       // Client joins a ride room
-      socket.on('JOIN_RIDE', async (data: { code: string; participantId: string }) => {
+      socket.on('JOIN_RIDE', async (data: { code: string; participantId?: string }) => {
         try {
           const { code, participantId } = data;
-          if (!code || !participantId) return;
+          if (!code) return;
 
           const roomName = `ride:${code.toUpperCase()}`;
           await socket.join(roomName);
+          console.log(`⚡ Socket ${socket.id} joined room ${roomName}`);
 
-          const participant = await ParticipantRepository.findParticipantById(participantId);
-          if (participant) {
-            // Notify all other sockets in this ride room
-            this.io.to(roomName).emit('PARTICIPANT_JOINED', participant);
-            console.log(`👤 Participant ${participant.name} (${participantId}) joined socket room ${roomName}`);
+          if (participantId) {
+            const participant = await ParticipantRepository.findParticipantById(participantId);
+            if (participant) {
+              // Notify all other sockets in this ride room
+              this.io.to(roomName).emit('PARTICIPANT_JOINED', participant);
+              console.log(`👤 Participant ${participant.name} (${participantId}) joined socket room ${roomName}`);
+            }
           }
         } catch (err) {
           console.error('Error handling JOIN_RIDE socket event:', err);
@@ -42,17 +45,18 @@ export class RideGateway {
       });
 
       // Client leaves a ride room
-      socket.on('LEAVE_RIDE', async (data: { code: string; participantId: string }) => {
+      socket.on('LEAVE_RIDE', async (data: { code: string; participantId?: string }) => {
         try {
           const { code, participantId } = data;
-          if (!code || !participantId) return;
+          if (!code) return;
 
           const roomName = `ride:${code.toUpperCase()}`;
-          await ParticipantRepository.updateParticipantStatus(participantId, 'LEFT');
-
-          this.io.to(roomName).emit('PARTICIPANT_LEFT', { participantId });
+          if (participantId) {
+            await ParticipantRepository.updateParticipantStatus(participantId, 'LEFT');
+            this.io.to(roomName).emit('PARTICIPANT_LEFT', { participantId });
+          }
           await socket.leave(roomName);
-          console.log(`👋 Participant (${participantId}) left socket room ${roomName}`);
+          console.log(`👋 Socket ${socket.id} left room ${roomName}`);
         } catch (err) {
           console.error('Error handling LEAVE_RIDE socket event:', err);
         }

@@ -66,4 +66,48 @@ export class RideController {
       next(error);
     }
   }
+
+  static async startRide(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { code } = req.params;
+      const { participantId } = req.body;
+      const updatedRide = await RideService.startRide(code, participantId);
+
+      // Broadcast RIDE_STARTED event to all connected sockets in room
+      rideGateway.getIO().to(`ride:${code.toUpperCase()}`).emit('RIDE_STARTED', {
+        code: updatedRide.code,
+        status: updatedRide.status,
+        startedAt: updatedRide.startedAt,
+      });
+
+      res.status(200).json({
+        success: true,
+        data: updatedRide,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async endRide(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { code } = req.params;
+      const { participantId } = req.body;
+      const updatedRide = await RideService.endRide(code, participantId);
+
+      // Broadcast RIDE_ENDED event to all connected sockets in room
+      rideGateway.getIO().to(`ride:${code.toUpperCase()}`).emit('RIDE_ENDED', {
+        code: updatedRide.code,
+        status: updatedRide.status,
+        endedAt: updatedRide.endedAt,
+      });
+
+      res.status(200).json({
+        success: true,
+        data: updatedRide,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }

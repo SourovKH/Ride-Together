@@ -22,7 +22,7 @@ const joinRideSchema = z.object({
   name: z.string().min(2, 'Participant name must be at least 2 characters'),
 });
 
-const leaveRideSchema = z.object({
+const actionRideSchema = z.object({
   participantId: z.string().uuid('Invalid participant ID'),
 });
 
@@ -38,5 +38,12 @@ rideRouter.get('/:code', RideController.getRide);
 rideRouter.post('/:code/join', validateRequest(joinRideSchema), RideController.joinRide);
 
 // POST /api/rides/:code/leave - Leave ride
-rideRouter.post('/:code/leave', validateRequest(leaveRideSchema), RideController.leaveRide);
+rideRouter.post('/:code/leave', validateRequest(actionRideSchema), RideController.leaveRide);
+
+// POST /api/rides/:code/start - Start ride (Organizer only)
+rideRouter.post('/:code/start', validateRequest(actionRideSchema), RideController.startRide);
+
+// POST /api/rides/:code/end - End ride (Organizer only)
+rideRouter.post('/:code/end', validateRequest(actionRideSchema), RideController.endRide);
+
 

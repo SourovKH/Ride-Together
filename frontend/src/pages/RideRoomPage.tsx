@@ -14,6 +14,9 @@ import {
   Sparkles,
   Wifi,
   WifiOff,
+  Play,
+  Square,
+  Radio,
 } from 'lucide-react';
 import { useRideStore } from '../store/useRideStore';
 import { useRideSocket } from '../hooks/useRideSocket';
@@ -21,7 +24,7 @@ import { useRideSocket } from '../hooks/useRideSocket';
 export const RideRoomPage: React.FC = () => {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
-  const { currentRide, fetchRide, session, leaveRide, isLoading } = useRideStore();
+  const { currentRide, fetchRide, session, leaveRide, startRide, endRide, isLoading } = useRideStore();
 
   const { isConnected } = useRideSocket(code, session?.participantId);
 
@@ -54,6 +57,20 @@ export const RideRoomPage: React.FC = () => {
     if (window.confirm('Are you sure you want to leave this ride room?')) {
       await leaveRide(currentRide.code, session.participantId);
       navigate('/');
+    }
+  };
+
+  const handleStartRide = async () => {
+    if (!currentRide || !session) return;
+    if (window.confirm('Start the live ride now? All connected riders will be notified!')) {
+      await startRide(currentRide.code, session.participantId);
+    }
+  };
+
+  const handleEndRide = async () => {
+    if (!currentRide || !session) return;
+    if (window.confirm('End this ride? This will mark the ride as COMPLETED for all participants.')) {
+      await endRide(currentRide.code, session.participantId);
     }
   };
 
@@ -132,13 +149,46 @@ export const RideRoomPage: React.FC = () => {
             )}
           </div>
 
-          <button
-            onClick={() => code && fetchRide(code)}
-            className="btn btn-secondary"
-            style={{ padding: '8px 14px', fontSize: '0.88rem' }}
-          >
-            <RefreshCw size={14} /> Refresh List
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {isUserOrganizer && currentRide.status === 'WAITING' && (
+              <button
+                onClick={handleStartRide}
+                className="btn btn-primary"
+                style={{
+                  padding: '10px 20px',
+                  fontSize: '0.95rem',
+                  backgroundColor: 'var(--accent-emerald)',
+                  borderColor: 'var(--accent-emerald)',
+                }}
+              >
+                <Play size={16} /> Start Ride
+              </button>
+            )}
+
+            {isUserOrganizer && currentRide.status === 'ACTIVE' && (
+              <button
+                onClick={handleEndRide}
+                className="btn btn-secondary"
+                style={{
+                  padding: '10px 20px',
+                  fontSize: '0.95rem',
+                  color: '#f87171',
+                  borderColor: 'rgba(239, 68, 68, 0.4)',
+                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                }}
+              >
+                <Square size={16} /> End Ride
+              </button>
+            )}
+
+            <button
+              onClick={() => code && fetchRide(code)}
+              className="btn btn-secondary"
+              style={{ padding: '10px 14px', fontSize: '0.88rem' }}
+            >
+              <RefreshCw size={14} /> Refresh List
+            </button>
+          </div>
         </div>
 
         <h1 style={{ fontSize: '2.2rem', color: 'var(--text-primary)', marginBottom: '16px' }}>
@@ -247,12 +297,12 @@ export const RideRoomPage: React.FC = () => {
                 Joined Participants
               </h3>
               <span className="badge" style={{ backgroundColor: 'var(--bg-surface-elevated)', color: 'var(--text-primary)', fontSize: '0.9rem' }}>
-                {currentRide.participants.length} Total
+                {(currentRide.participants || []).length} Total
               </span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {currentRide.participants.map((p) => {
+              {(currentRide.participants || []).map((p) => {
                 const isSelf = session?.participantId === p.id;
                 const isOrg = p.role === 'ORGANIZER';
 
@@ -311,11 +361,28 @@ export const RideRoomPage: React.FC = () => {
               })}
             </div>
 
-            {/* Waiting Notice */}
-            <div style={{ marginTop: '24px', padding: '14px', borderRadius: '10px', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-subtle)', textAlign: 'center', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-              <Sparkles size={16} color="var(--accent-amber)" style={{ display: 'inline', marginRight: '6px' }} />
-              Waiting for the organizer to start the live ride stream...
-            </div>
+            {/* Dynamic Status Notice Banner */}
+            {currentRide.status === 'WAITING' && (
+              <div style={{ marginTop: '24px', padding: '14px', borderRadius: '10px', backgroundColor: 'rgba(217, 119, 6, 0.08)', border: '1px solid rgba(217, 119, 6, 0.2)', textAlign: 'center', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+                <Sparkles size={16} color="var(--accent-amber)" style={{ display: 'inline', marginRight: '6px' }} />
+                {isUserOrganizer
+                  ? 'Click "Start Ride" above when your group is ready to ride!'
+                  : 'Waiting for the organizer to start the live ride...'}
+              </div>
+            )}
+
+            {currentRide.status === 'ACTIVE' && (
+              <div style={{ marginTop: '24px', padding: '14px', borderRadius: '10px', backgroundColor: 'rgba(22, 163, 74, 0.08)', border: '1px solid rgba(22, 163, 74, 0.2)', textAlign: 'center', fontSize: '0.88rem', color: 'var(--accent-emerald)', fontWeight: 600 }}>
+                <Radio size={16} style={{ display: 'inline', marginRight: '6px' }} />
+                🟢 RIDE IS ACTIVE & LIVE — Group live tracking active!
+              </div>
+            )}
+
+            {currentRide.status === 'COMPLETED' && (
+              <div style={{ marginTop: '24px', padding: '14px', borderRadius: '10px', backgroundColor: 'rgba(148, 163, 184, 0.08)', border: '1px solid var(--border-subtle)', textAlign: 'center', fontSize: '0.88rem', color: 'var(--text-muted)' }}>
+                🏁 RIDE COMPLETED — Thank you for riding together!
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -113,6 +113,8 @@ export class RideService {
       status: ride.status,
       start: ride.start,
       destination: ride.destination,
+      startedAt: ride.startedAt,
+      endedAt: ride.endedAt,
       participants,
     };
   }
@@ -127,5 +129,55 @@ export class RideService {
 
     const updated = await ParticipantRepository.updateParticipantStatus(participantId, 'LEFT');
     return updated;
+  }
+
+  static async startRide(code: string, participantId: string): Promise<GetRideResponse> {
+    const ride = await RideRepository.findByCode(code);
+    if (!ride) {
+      const err = new Error('Ride not found');
+      (err as any).statusCode = 404;
+      throw err;
+    }
+
+    if (ride.status !== 'WAITING') {
+      const err = new Error(`Cannot start ride with status ${ride.status}`);
+      (err as any).statusCode = 400;
+      throw err;
+    }
+
+    const participant = await ParticipantRepository.findParticipantById(participantId);
+    if (!participant || participant.rideId !== ride.id || participant.role !== 'ORGANIZER') {
+      const err = new Error('Only the ride organizer can start the ride');
+      (err as any).statusCode = 403;
+      throw err;
+    }
+
+    await RideRepository.updateRideStatus(ride.id, 'ACTIVE');
+    return await this.getRideByCode(code);
+  }
+
+  static async endRide(code: string, participantId: string): Promise<GetRideResponse> {
+    const ride = await RideRepository.findByCode(code);
+    if (!ride) {
+      const err = new Error('Ride not found');
+      (err as any).statusCode = 404;
+      throw err;
+    }
+
+    if (ride.status !== 'ACTIVE') {
+      const err = new Error(`Cannot end a ride that is not currently active (current status: ${ride.status})`);
+      (err as any).statusCode = 400;
+      throw err;
+    }
+
+    const participant = await ParticipantRepository.findParticipantById(participantId);
+    if (!participant || participant.rideId !== ride.id || participant.role !== 'ORGANIZER') {
+      const err = new Error('Only the ride organizer can end the ride');
+      (err as any).statusCode = 403;
+      throw err;
+    }
+
+    await RideRepository.updateRideStatus(ride.id, 'COMPLETED');
+    return await this.getRideByCode(code);
   }
 }

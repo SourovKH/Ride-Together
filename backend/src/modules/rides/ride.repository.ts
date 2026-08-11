@@ -63,7 +63,8 @@ export class RideRepository {
         id, code, name, status,
         start_name as "startName", start_latitude as "startLatitude", start_longitude as "startLongitude",
         destination_name as "destName", destination_latitude as "destLatitude", destination_longitude as "destLongitude",
-        organizer_participant_id as "organizerParticipantId", created_at as "createdAt"
+        organizer_participant_id as "organizerParticipantId", created_at as "createdAt",
+        started_at as "startedAt", ended_at as "endedAt"
       FROM rides
       WHERE UPPER(code) = UPPER($1)
     `;
@@ -89,6 +90,48 @@ export class RideRepository {
       },
       organizerParticipantId: row.organizerParticipantId,
       createdAt: row.createdAt,
+      startedAt: row.startedAt,
+      endedAt: row.endedAt,
+    };
+  }
+
+  static async updateRideStatus(rideId: string, status: 'ACTIVE' | 'COMPLETED'): Promise<Ride> {
+    const query = `
+      UPDATE rides
+      SET status = $1::VARCHAR,
+          started_at = CASE WHEN $1 = 'ACTIVE' AND started_at IS NULL THEN NOW() ELSE started_at END,
+          ended_at = CASE WHEN $1 = 'COMPLETED' THEN NOW() ELSE ended_at END
+      WHERE id = $2::UUID
+      RETURNING 
+        id, code, name, status,
+        start_name as "startName", start_latitude as "startLatitude", start_longitude as "startLongitude",
+        destination_name as "destName", destination_latitude as "destLatitude", destination_longitude as "destLongitude",
+        organizer_participant_id as "organizerParticipantId", created_at as "createdAt",
+        started_at as "startedAt", ended_at as "endedAt"
+    `;
+
+    const result = await pgPool.query(query, [status, rideId]);
+    const row = result.rows[0];
+
+    return {
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      status: row.status,
+      start: {
+        name: row.startName,
+        latitude: parseFloat(row.startLatitude),
+        longitude: parseFloat(row.startLongitude),
+      },
+      destination: {
+        name: row.destName,
+        latitude: parseFloat(row.destLatitude),
+        longitude: parseFloat(row.destLongitude),
+      },
+      organizerParticipantId: row.organizerParticipantId,
+      createdAt: row.createdAt,
+      startedAt: row.startedAt,
+      endedAt: row.endedAt,
     };
   }
 }

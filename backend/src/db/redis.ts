@@ -5,7 +5,7 @@ export const redisClient = new Redis(env.REDIS_URL, {
   maxRetriesPerRequest: 3,
   retryStrategy(times) {
     if (times > 5) {
-      return null;
+      return null; // Stop retrying after 5 attempts
     }
     return Math.min(times * 100, 3000);
   },
@@ -18,7 +18,7 @@ redisClient.on('error', (err) => {
 
 export const checkRedisHealth = async (): Promise<boolean> => {
   try {
-    if (redisClient.status !== 'ready' && redisClient.status !== 'connecting') {
+    if (redisClient.status === 'wait') {
       await redisClient.connect();
     }
     const ping = await redisClient.ping();

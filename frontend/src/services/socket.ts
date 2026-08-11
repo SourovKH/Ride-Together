@@ -71,6 +71,18 @@ class SocketService {
     socket.on('PARTICIPANT_LEFT', callback);
   }
 
+  public onRideStarted(callback: (data: { code: string; status: 'ACTIVE'; startedAt?: string }) => void) {
+    const socket = this.connect();
+    socket.off('RIDE_STARTED');
+    socket.on('RIDE_STARTED', callback);
+  }
+
+  public onRideEnded(callback: (data: { code: string; status: 'COMPLETED'; endedAt?: string }) => void) {
+    const socket = this.connect();
+    socket.off('RIDE_ENDED');
+    socket.on('RIDE_ENDED', callback);
+  }
+
   public onStatusChange(callback: (connected: boolean) => void) {
     const socket = this.connect();
     socket.on('connect', () => callback(true));

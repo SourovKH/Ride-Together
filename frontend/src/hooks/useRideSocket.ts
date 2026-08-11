@@ -4,7 +4,7 @@ import { useRideStore } from '../store/useRideStore';
 
 export const useRideSocket = (code?: string, participantId?: string) => {
   const [isConnected, setIsConnected] = useState(false);
-  const { addParticipant, removeParticipant } = useRideStore();
+  const { addParticipant, removeParticipant, updateRideStatus, fetchRide } = useRideStore();
 
   useEffect(() => {
     if (!code) {
@@ -31,11 +31,24 @@ export const useRideSocket = (code?: string, participantId?: string) => {
       removeParticipant(data.participantId);
     });
 
+    // Listen for ride status events
+    socketService.onRideStarted((data) => {
+      console.log('⚡ Real-time Event: RIDE_STARTED', data);
+      updateRideStatus('ACTIVE');
+      fetchRide(code);
+    });
+
+    socketService.onRideEnded((data) => {
+      console.log('⚡ Real-time Event: RIDE_ENDED', data);
+      updateRideStatus('COMPLETED');
+      fetchRide(code);
+    });
+
     return () => {
       // Unsubscribe socket from room without altering DB status
       socketService.leaveRideRoom(code);
     };
-  }, [code, participantId, addParticipant, removeParticipant]);
+  }, [code, participantId, addParticipant, removeParticipant, updateRideStatus, fetchRide]);
 
   return { isConnected };
 };

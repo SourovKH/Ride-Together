@@ -65,5 +65,7 @@ export interface GetRideResponse {
   status: RideStatus;
   start: RideLocation;
   destination: RideLocation;
+  startedAt?: string | null;
+  endedAt?: string | null;
   participants: Participant[];
 }

@@ -20,6 +20,9 @@ interface RideState {
   createRide: (payload: CreateRidePayload) => Promise<string>;
   joinRide: (code: string, payload: JoinRidePayload) => Promise<string>;
   leaveRide: (code: string, participantId: string) => Promise<void>;
+  startRide: (code: string, participantId: string) => Promise<void>;
+  endRide: (code: string, participantId: string) => Promise<void>;
+  updateRideStatus: (status: 'WAITING' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED') => void;
   addParticipant: (participant: Participant) => void;
   removeParticipant: (participantId: string) => void;
   clearSession: () => void;
@@ -122,13 +125,67 @@ export const useRideStore = create<RideState>((set) => ({
     }
   },
 
+  startRide: async (code: string, participantId: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const updatedRide = await api.startRide(code, participantId);
+      set((state) => ({
+        currentRide: state.currentRide
+          ? {
+              ...state.currentRide,
+              ...updatedRide,
+              participants: updatedRide.participants || state.currentRide.participants || [],
+            }
+          : updatedRide,
+        isLoading: false,
+      }));
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to start ride', isLoading: false });
+      throw err;
+    }
+  },
+
+  endRide: async (code: string, participantId: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const updatedRide = await api.endRide(code, participantId);
+      set((state) => ({
+        currentRide: state.currentRide
+          ? {
+              ...state.currentRide,
+              ...updatedRide,
+              participants: updatedRide.participants || state.currentRide.participants || [],
+            }
+          : updatedRide,
+        isLoading: false,
+      }));
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to end ride', isLoading: false });
+      throw err;
+    }
+  },
+
+  updateRideStatus: (status: 'WAITING' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED') => {
+    set((state) => {
+      if (!state.currentRide) return state;
+      return {
+        currentRide: {
+          ...state.currentRide,
+          status,
+          participants: state.currentRide.participants || [],
+        },
+      };
+    });
+  },
+
   addParticipant: (participant: Participant) => {
     set((state) => {
       if (!state.currentRide) return state;
-      const exists = state.currentRide.participants.some((p) => p.id === participant.id);
+      const currentList = state.currentRide.participants || [];
+      const exists = currentList.some((p) => p.id === participant.id);
       const updatedParticipants = exists
-        ? state.currentRide.participants.map((p) => (p.id === participant.id ? participant : p))
-        : [...state.currentRide.participants, participant];
+        ? currentList.map((p) => (p.id === participant.id ? participant : p))
+        : [...currentList, participant];
 
       return {
         currentRide: {
@@ -142,10 +199,11 @@ export const useRideStore = create<RideState>((set) => ({
   removeParticipant: (participantId: string) => {
     set((state) => {
       if (!state.currentRide) return state;
+      const currentList = state.currentRide.participants || [];
       return {
         currentRide: {
           ...state.currentRide,
-          participants: state.currentRide.participants.filter((p) => p.id !== participantId),
+          participants: currentList.filter((p) => p.id !== participantId),
         },
       };
     });
