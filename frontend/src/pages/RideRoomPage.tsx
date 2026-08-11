@@ -26,6 +26,7 @@ import {
 import { useRideStore } from '../store/useRideStore';
 import { useRideSocket } from '../hooks/useRideSocket';
 import { useGeolocation } from '../hooks/useGeolocation';
+import { MapView } from '../components/MapView';
 
 export const RideRoomPage: React.FC = () => {
   const { code } = useParams<{ code: string }>();
@@ -223,6 +224,17 @@ export const RideRoomPage: React.FC = () => {
             <span>Destination: <strong style={{ color: 'var(--text-primary)' }}>{currentRide.destination.name}</strong></span>
           </div>
         </div>
+      </div>
+
+      {/* Live Map Display */}
+      <div style={{ marginBottom: '28px' }}>
+        <MapView
+          startLocation={currentRide.start}
+          destinationLocation={currentRide.destination}
+          participants={currentRide.participants || []}
+          participantLocations={participantLocations}
+          currentParticipantId={session?.participantId}
+        />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
