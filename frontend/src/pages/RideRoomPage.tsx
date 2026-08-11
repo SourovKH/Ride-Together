@@ -17,9 +17,15 @@ import {
   Play,
   Square,
   Radio,
+  Compass,
+  Crosshair,
+  Gauge,
+  Clock,
+  AlertTriangle,
 } from 'lucide-react';
 import { useRideStore } from '../store/useRideStore';
 import { useRideSocket } from '../hooks/useRideSocket';
+import { useGeolocation } from '../hooks/useGeolocation';
 
 export const RideRoomPage: React.FC = () => {
   const { code } = useParams<{ code: string }>();
@@ -27,9 +33,20 @@ export const RideRoomPage: React.FC = () => {
   const { currentRide, fetchRide, session, leaveRide, startRide, endRide, isLoading } = useRideStore();
 
   const { isConnected } = useRideSocket(code, session?.participantId);
+  
+  // Geolocation tracking active ONLY when ride.status === 'ACTIVE'
+  const isRideActive = currentRide?.status === 'ACTIVE';
+  const { location, error: geoError, isTracking, requestPermission } = useGeolocation(isRideActive);
 
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+
+  const getHeadingDirection = (heading: number | null): string => {
+    if (heading === null) return 'N/A';
+    const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    const index = Math.round(heading / 45) % 8;
+    return `${heading}° (${directions[index]})`;
+  };
 
   useEffect(() => {
     if (code) {
@@ -284,6 +301,106 @@ export const RideRoomPage: React.FC = () => {
               >
                 Join This Ride Now
               </Link>
+            )}
+          </div>
+
+          {/* Live GPS Tracker Card (Active when ride.status === 'ACTIVE') */}
+          <div className="glass-panel" style={{ padding: '20px', marginTop: '24px', border: isRideActive ? '1px solid rgba(22, 163, 74, 0.4)' : '1px solid var(--border-subtle)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '1.05rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                <Crosshair size={18} color={isRideActive ? 'var(--accent-emerald)' : 'var(--text-muted)'} />
+                Live GPS Location
+              </h3>
+              <span
+                className="badge"
+                style={{
+                  backgroundColor: isTracking ? 'rgba(22, 163, 74, 0.15)' : 'rgba(148, 163, 184, 0.15)',
+                  color: isTracking ? 'var(--accent-emerald)' : 'var(--text-muted)',
+                  border: isTracking ? '1px solid rgba(22, 163, 74, 0.3)' : '1px solid var(--border-subtle)',
+                  fontSize: '0.78rem',
+                }}
+              >
+                {isTracking ? '📡 GPS Active' : 'GPS Inactive'}
+              </span>
+            </div>
+
+            {!isRideActive ? (
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', padding: '12px', borderRadius: '8px', backgroundColor: 'var(--bg-surface)', textAlign: 'center' }}>
+                GPS tracking automatically activates when the organizer starts the ride.
+              </div>
+            ) : geoError ? (
+              <div style={{ padding: '14px', borderRadius: '10px', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', fontSize: '0.85rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, marginBottom: '6px' }}>
+                  <AlertTriangle size={16} /> GPS Error: Permission Required
+                </div>
+                <p style={{ margin: '0 0 10px 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{geoError.message}</p>
+                <button
+                  onClick={requestPermission}
+                  className="btn btn-secondary"
+                  style={{ width: '100%', fontSize: '0.8rem', padding: '6px 12px' }}
+                >
+                  Enable Location Permission
+                </button>
+              </div>
+            ) : location ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div style={{ padding: '10px 12px', borderRadius: '8px', backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <MapPin size={12} color="var(--accent-primary)" /> Latitude
+                    </div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '2px' }}>
+                      {location.latitude.toFixed(6)}°
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '10px 12px', borderRadius: '8px', backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <MapPin size={12} color="var(--accent-primary)" /> Longitude
+                    </div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '2px' }}>
+                      {location.longitude.toFixed(6)}°
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                  <div style={{ padding: '8px 10px', borderRadius: '8px', backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
+                      <Crosshair size={11} /> Accuracy
+                    </div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-emerald)', marginTop: '2px' }}>
+                      ±{location.accuracy}m
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '8px 10px', borderRadius: '8px', backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
+                      <Gauge size={11} /> Speed
+                    </div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-amber)', marginTop: '2px' }}>
+                      {location.speed} km/h
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '8px 10px', borderRadius: '8px', backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
+                      <Compass size={11} /> Heading
+                    </div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-primary)', marginTop: '2px' }}>
+                      {getHeadingDirection(location.heading)}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'right', marginTop: '2px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+                  <Clock size={12} /> Updated {new Date(location.timestamp).toLocaleTimeString()}
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '12px' }}>
+                Acquiring GPS fix...
+              </div>
             )}
           </div>
         </div>
