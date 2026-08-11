@@ -26,6 +26,16 @@ export interface Participant {
   joinedAt: string;
 }
 
+export interface RiderLocationData {
+  participantId: string;
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+  heading: number | null;
+  speed: number | null;
+  timestamp: number;
+}
+
 export interface RideDetails {
   id: string;
   code: string;
@@ -128,5 +138,10 @@ export const api = {
       body: JSON.stringify({ participantId }),
     });
     return handleResponse<RideDetails>(res);
+  },
+
+  async getRideLocations(code: string): Promise<Record<string, RiderLocationData>> {
+    const res = await fetch(`${API_BASE_URL}/rides/${encodeURIComponent(code)}/locations`);
+    return handleResponse<Record<string, RiderLocationData>>(res);
   },
 };

@@ -83,6 +83,33 @@ class SocketService {
     socket.on('RIDE_ENDED', callback);
   }
 
+  public emitLocationUpdate(data: {
+    code: string;
+    participantId: string;
+    latitude: number;
+    longitude: number;
+    accuracy: number;
+    heading: number | null;
+    speed: number | null;
+    timestamp: number;
+  }) {
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('LOCATION_UPDATE', data);
+    }
+  }
+
+  public onLocationUpdated(callback: (location: any) => void) {
+    const socket = this.connect();
+    socket.off('LOCATION_UPDATED');
+    socket.on('LOCATION_UPDATED', callback);
+  }
+
+  public onInitialLocations(callback: (locations: Record<string, any>) => void) {
+    const socket = this.connect();
+    socket.off('INITIAL_LOCATIONS');
+    socket.on('INITIAL_LOCATIONS', callback);
+  }
+
   public onStatusChange(callback: (connected: boolean) => void) {
     const socket = this.connect();
     socket.on('connect', () => callback(true));

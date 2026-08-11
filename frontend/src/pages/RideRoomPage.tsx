@@ -30,13 +30,13 @@ import { useGeolocation } from '../hooks/useGeolocation';
 export const RideRoomPage: React.FC = () => {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
-  const { currentRide, fetchRide, session, leaveRide, startRide, endRide, isLoading } = useRideStore();
+  const { currentRide, fetchRide, session, leaveRide, startRide, endRide, isLoading, participantLocations } = useRideStore();
 
-  const { isConnected } = useRideSocket(code, session?.participantId);
-  
   // Geolocation tracking active ONLY when ride.status === 'ACTIVE'
   const isRideActive = currentRide?.status === 'ACTIVE';
   const { location, error: geoError, isTracking, requestPermission } = useGeolocation(isRideActive);
+
+  const { isConnected } = useRideSocket(code, session?.participantId, location);
 
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -337,9 +337,9 @@ export const RideRoomPage: React.FC = () => {
                 <button
                   onClick={requestPermission}
                   className="btn btn-secondary"
-                  style={{ width: '100%', fontSize: '0.8rem', padding: '6px 12px' }}
+                  style={{ width: '100%', fontSize: '0.8rem', padding: '8px 12px' }}
                 >
-                  Enable Location Permission
+                  Retry Location Access (Standard Accuracy)
                 </button>
               </div>
             ) : location ? (
@@ -422,56 +422,93 @@ export const RideRoomPage: React.FC = () => {
               {(currentRide.participants || []).map((p) => {
                 const isSelf = session?.participantId === p.id;
                 const isOrg = p.role === 'ORGANIZER';
+                const pLoc = participantLocations[p.id];
+                const isLocFresh = pLoc && Date.now() - pLoc.timestamp < 35000;
 
                 return (
                   <div
                     key={p.id}
                     style={{
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
+                      flexDirection: 'column',
+                      gap: '10px',
                       padding: '14px 18px',
                       borderRadius: '12px',
                       backgroundColor: isSelf ? 'rgba(2, 132, 199, 0.08)' : 'var(--bg-surface)',
                       border: isSelf ? '1px solid var(--border-glow)' : '1px solid var(--border-subtle)',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div
-                        style={{
-                          width: '36px',
-                          height: '36px',
-                          borderRadius: '50%',
-                          backgroundColor: isOrg ? 'rgba(217, 119, 6, 0.15)' : 'rgba(2, 132, 199, 0.15)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: isOrg ? 'var(--accent-amber)' : 'var(--accent-primary)',
-                          fontWeight: 700,
-                          fontSize: '0.95rem',
-                        }}
-                      >
-                        {p.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          {p.name}
-                          {isSelf && (
-                            <span style={{ fontSize: '0.75rem', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'var(--accent-primary)', color: '#fff' }}>
-                              You
-                            </span>
-                          )}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '50%',
+                            backgroundColor: isOrg ? 'rgba(217, 119, 6, 0.15)' : 'rgba(2, 132, 199, 0.15)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: isOrg ? 'var(--accent-amber)' : 'var(--accent-primary)',
+                            fontWeight: 700,
+                            fontSize: '0.95rem',
+                          }}
+                        >
+                          {p.name.charAt(0).toUpperCase()}
                         </div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                          Joined {new Date(p.joinedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        <div>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {p.name}
+                            {isSelf && (
+                              <span style={{ fontSize: '0.75rem', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'var(--accent-primary)', color: '#fff' }}>
+                                You
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            Joined {new Date(p.joinedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
                         </div>
                       </div>
+
+                      {isOrg && (
+                        <span className="badge" style={{ backgroundColor: 'rgba(217, 119, 6, 0.12)', color: 'var(--accent-amber)', fontSize: '0.8rem', border: '1px solid rgba(217, 119, 6, 0.25)' }}>
+                          <Crown size={12} style={{ display: 'inline', marginRight: '4px' }} /> Organizer
+                        </span>
+                      )}
                     </div>
 
-                    {isOrg && (
-                      <span className="badge" style={{ backgroundColor: 'rgba(217, 119, 6, 0.12)', color: 'var(--accent-amber)', fontSize: '0.8rem', border: '1px solid rgba(217, 119, 6, 0.25)' }}>
-                        <Crown size={12} style={{ display: 'inline', marginRight: '4px' }} /> Organizer
-                      </span>
+                    {/* Live Rider Location Chip */}
+                    {isRideActive && (
+                      <div
+                        style={{
+                          fontSize: '0.78rem',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          backgroundColor: isLocFresh ? 'rgba(22, 163, 74, 0.08)' : 'rgba(148, 163, 184, 0.06)',
+                          border: isLocFresh ? '1px solid rgba(22, 163, 74, 0.2)' : '1px solid var(--border-subtle)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          color: isLocFresh ? 'var(--accent-emerald)' : 'var(--text-muted)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Crosshair size={12} color={isLocFresh ? 'var(--accent-emerald)' : 'var(--text-muted)'} />
+                          {isLocFresh ? (
+                            <span>
+                              <strong>{pLoc.speed} km/h</strong> • {pLoc.latitude.toFixed(4)}°, {pLoc.longitude.toFixed(4)} (±{pLoc.accuracy}m)
+                            </span>
+                          ) : (
+                            <span>GPS Inactive / Signal Pending</span>
+                          )}
+                        </div>
+                        {isLocFresh && (
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                            {new Date(pLoc.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
                 );

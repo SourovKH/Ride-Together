@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api, CreateRidePayload, JoinRidePayload, Participant, RideDetails } from '../services/api';
+import { api, CreateRidePayload, JoinRidePayload, Participant, RideDetails, RiderLocationData } from '../services/api';
 
 interface RideSession {
   participantId: string;
@@ -12,6 +12,7 @@ interface RideSession {
 interface RideState {
   currentRide: RideDetails | null;
   session: RideSession | null;
+  participantLocations: Record<string, RiderLocationData>;
   isLoading: boolean;
   error: string | null;
 
@@ -23,6 +24,9 @@ interface RideState {
   startRide: (code: string, participantId: string) => Promise<void>;
   endRide: (code: string, participantId: string) => Promise<void>;
   updateRideStatus: (status: 'WAITING' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED') => void;
+  updateParticipantLocation: (location: RiderLocationData) => void;
+  setParticipantLocations: (locations: Record<string, RiderLocationData>) => void;
+  fetchRideLocations: (code: string) => Promise<void>;
   addParticipant: (participant: Participant) => void;
   removeParticipant: (participantId: string) => void;
   clearSession: () => void;
@@ -43,6 +47,7 @@ const getInitialSession = (): RideSession | null => {
 export const useRideStore = create<RideState>((set) => ({
   currentRide: null,
   session: getInitialSession(),
+  participantLocations: {},
   isLoading: false,
   error: null,
 
@@ -176,6 +181,28 @@ export const useRideStore = create<RideState>((set) => ({
         },
       };
     });
+  },
+
+  updateParticipantLocation: (location: RiderLocationData) => {
+    set((state) => ({
+      participantLocations: {
+        ...state.participantLocations,
+        [location.participantId]: location,
+      },
+    }));
+  },
+
+  setParticipantLocations: (locations: Record<string, RiderLocationData>) => {
+    set({ participantLocations: locations });
+  },
+
+  fetchRideLocations: async (code: string) => {
+    try {
+      const locations = await api.getRideLocations(code);
+      set({ participantLocations: locations });
+    } catch (err) {
+      console.error('Error fetching ride locations:', err);
+    }
   },
 
   addParticipant: (participant: Participant) => {

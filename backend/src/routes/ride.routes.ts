@@ -46,4 +46,8 @@ rideRouter.post('/:code/start', validateRequest(actionRideSchema), RideControlle
 // POST /api/rides/:code/end - End ride (Organizer only)
 rideRouter.post('/:code/end', validateRequest(actionRideSchema), RideController.endRide);
 
+// GET /api/rides/:code/locations - Fetch live rider locations from Redis
+rideRouter.get('/:code/locations', RideController.getLocations);
+
+
 

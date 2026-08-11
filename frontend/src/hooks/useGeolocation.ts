@@ -29,6 +29,7 @@ export const useGeolocation = (enabled: boolean = true): UseGeolocationReturn =>
   const [error, setError] = useState<GeolocationError | null>(null);
   const [permissionStatus, setPermissionStatus] = useState<PermissionState>('unknown');
   const [isTracking, setIsTracking] = useState<boolean>(false);
+  const [useHighAccuracy, setUseHighAccuracy] = useState<boolean>(true);
 
   // Check browser permission status if Permissions API is available
   useEffect(() => {
@@ -78,14 +79,16 @@ export const useGeolocation = (enabled: boolean = true): UseGeolocationReturn =>
     let message = 'An unknown geolocation error occurred.';
     switch (err.code) {
       case err.PERMISSION_DENIED:
-        message = 'Location permission was denied by user or browser.';
+        message = 'Location permission was denied by user or browser. Please allow location access in your browser settings.';
         setPermissionStatus('denied');
         break;
       case err.POSITION_UNAVAILABLE:
-        message = 'Location information is unavailable from GPS.';
+        message = 'Location information is unavailable from your device.';
         break;
       case err.TIMEOUT:
-        message = 'Location request timed out.';
+        message = 'Location request timed out. Retrying with standard accuracy...';
+        // Auto fallback to standard accuracy on timeout (e.g. desktop/indoor browser)
+        setUseHighAccuracy(false);
         break;
     }
 
@@ -100,10 +103,13 @@ export const useGeolocation = (enabled: boolean = true): UseGeolocationReturn =>
     if (!('geolocation' in navigator)) return;
 
     setError(null);
+    // Switch to standard accuracy for manual retry to avoid hardware GPS timeout
+    setUseHighAccuracy(false);
+
     navigator.geolocation.getCurrentPosition(handleSuccess, handleError, {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 0,
+      enableHighAccuracy: false,
+      timeout: 20000,
+      maximumAge: 30000,
     });
   }, [handleSuccess, handleError]);
 
@@ -124,16 +130,16 @@ export const useGeolocation = (enabled: boolean = true): UseGeolocationReturn =>
     setIsTracking(true);
 
     const watchId = navigator.geolocation.watchPosition(handleSuccess, handleError, {
-      enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 15000,
+      enableHighAccuracy: useHighAccuracy,
+      maximumAge: 10000,
+      timeout: 20000,
     });
 
     return () => {
       navigator.geolocation.clearWatch(watchId);
       setIsTracking(false);
     };
-  }, [enabled, handleSuccess, handleError]);
+  }, [enabled, useHighAccuracy, handleSuccess, handleError]);
 
   return {
     location,

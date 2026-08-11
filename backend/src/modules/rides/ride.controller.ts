@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { RideService } from './ride.service.js';
 import { ParticipantRepository } from '../participants/participant.repository.js';
+import { LocationRepository } from '../locations/location.repository.js';
 import { rideGateway } from '../../index.js';
 
 export class RideController {
@@ -105,6 +106,19 @@ export class RideController {
       res.status(200).json({
         success: true,
         data: updatedRide,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getLocations(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { code } = req.params;
+      const locations = await LocationRepository.getRideLocations(code);
+      res.status(200).json({
+        success: true,
+        data: locations,
       });
     } catch (error) {
       next(error);
