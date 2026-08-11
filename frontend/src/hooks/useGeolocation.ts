@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface LocationData {
   latitude: number;
@@ -31,6 +31,10 @@ export const useGeolocation = (enabled: boolean = true): UseGeolocationReturn =>
   const [isTracking, setIsTracking] = useState<boolean>(false);
   const [useHighAccuracy, setUseHighAccuracy] = useState<boolean>(true);
 
+  // Track previous position to compute heading from movement direction
+  const prevPositionRef = useRef<{ lat: number; lng: number } | null>(null);
+  const computedHeadingRef = useRef<number | null>(null);
+
   // Check browser permission status if Permissions API is available
   useEffect(() => {
     if (!('navigator' in window) || !('geolocation' in navigator)) {
@@ -62,11 +66,45 @@ export const useGeolocation = (enabled: boolean = true): UseGeolocationReturn =>
     // Convert m/s to km/h if speed is present
     const speedKmH = speed !== null && speed >= 0 ? Math.round(speed * 3.6 * 10) / 10 : 0;
 
+    // Compute heading from movement if native heading is null
+    let effectiveHeading: number | null = heading !== null ? Math.round(heading) : null;
+
+    if (effectiveHeading === null && prevPositionRef.current) {
+      const prevLat = prevPositionRef.current.lat;
+      const prevLng = prevPositionRef.current.lng;
+
+      // Only compute if moved more than ~5 meters (avoid jitter)
+      const dLat = latitude - prevLat;
+      const dLng = longitude - prevLng;
+      const distSq = dLat * dLat + dLng * dLng;
+
+      if (distSq > 0.000002) {
+        // Compute bearing: atan2 based bearing from prev to current
+        const toRad = (d: number) => (d * Math.PI) / 180;
+        const toDeg = (r: number) => (r * 180) / Math.PI;
+        const lat1 = toRad(prevLat);
+        const lat2 = toRad(latitude);
+        const dLon = toRad(longitude - prevLng);
+
+        const x = Math.sin(dLon) * Math.cos(lat2);
+        const y = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+        const bearing = (toDeg(Math.atan2(x, y)) + 360) % 360;
+
+        effectiveHeading = Math.round(bearing);
+        computedHeadingRef.current = effectiveHeading;
+      } else {
+        // Not enough movement, keep last computed heading
+        effectiveHeading = computedHeadingRef.current;
+      }
+    }
+
+    prevPositionRef.current = { lat: latitude, lng: longitude };
+
     setLocation({
       latitude,
       longitude,
       accuracy: Math.round(accuracy),
-      heading: heading !== null ? Math.round(heading) : null,
+      heading: effectiveHeading,
       speed: speedKmH,
       timestamp: position.timestamp,
     });

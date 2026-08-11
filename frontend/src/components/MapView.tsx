@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { LocationInput, Participant, RiderLocationData } from '../services/api';
+import { getHaversineDistanceKm, formatDistance } from '../utils/distance';
 
 interface MapViewProps {
   startLocation: LocationInput;
@@ -10,20 +11,6 @@ interface MapViewProps {
   participantLocations: Record<string, RiderLocationData>;
   currentParticipantId?: string;
   routeGeometry?: [number, number][];
-}
-
-function getHaversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.round(R * c * 10) / 10;
 }
 
 function getTimeAgo(timestamp: number): string {
@@ -271,13 +258,15 @@ export const MapView: React.FC<MapViewProps> = ({
           lat,
           lng
         );
-        distanceText = `${dist} km away`;
+        distanceText = `${formatDistance(dist)} away`;
       } else if (isSelf) {
         distanceText = 'You';
       }
 
       const statusColor = !hasLiveGps ? '#94a3b8' : isStale ? '#64748b' : isOrg ? '#f59e0b' : '#0284c7';
       const initial = participant.name.charAt(0).toUpperCase();
+      const heading = liveLoc?.heading ?? null;
+      const hasHeading = heading !== null && heading !== undefined;
 
       const popupHtml = `
         <div style="color: #0f172a; padding: 6px; min-width: 150px;">
@@ -292,6 +281,7 @@ export const MapView: React.FC<MapViewProps> = ({
               hasLiveGps
                 ? `Speed: <strong>${liveLoc.speed ?? 0} km/h</strong><br/>
                    Accuracy: <strong>±${liveLoc.accuracy}m</strong><br/>
+                   ${hasHeading ? `Heading: <strong>${Math.round(heading)}°</strong><br/>` : ''}
                    <span style="font-size: 0.72rem; color: #64748b;">Updated ${getTimeAgo(liveLoc.timestamp)}</span>`
                 : `<span style="color: #64748b; font-style: italic;">At Start Location (GPS Pending)</span>`
             }
@@ -299,13 +289,36 @@ export const MapView: React.FC<MapViewProps> = ({
         </div>
       `;
 
+      // Build the heading arrow HTML — only shown when heading data is available
+      const arrowHtml = hasHeading
+        ? `<div style="
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%) rotate(${heading}deg);
+            transform-origin: center 30px;
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-bottom: 14px solid ${statusColor};
+            filter: drop-shadow(0 0 4px ${isSelf ? 'rgba(56,189,248,0.8)' : 'rgba(0,0,0,0.5)'});
+            z-index: 1;
+          "></div>`
+        : '';
+
       if (!activeMarkers[participant.id]) {
         const el = document.createElement('div');
         el.className = 'custom-map-marker rider-marker';
-        el.style.width = '36px';
-        el.style.height = '36px';
+        el.style.width = '48px';
+        el.style.height = '48px';
         el.style.cursor = 'pointer';
+        el.style.position = 'relative';
+        el.style.display = 'flex';
+        el.style.alignItems = 'center';
+        el.style.justifyContent = 'center';
         el.innerHTML = `
+          ${arrowHtml}
           <div style="
             background-color: ${statusColor};
             border: 2.5px solid ${isSelf ? '#38bdf8' : '#ffffff'};
@@ -326,7 +339,7 @@ export const MapView: React.FC<MapViewProps> = ({
           </div>
         `;
 
-        const marker = new maplibregl.Marker({ element: el })
+        const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
           .setLngLat([lng, lat])
           .setPopup(new maplibregl.Popup({ offset: 25 }).setHTML(popupHtml))
           .addTo(map);
@@ -335,6 +348,31 @@ export const MapView: React.FC<MapViewProps> = ({
       } else {
         const marker = activeMarkers[participant.id];
         marker.setLngLat([lng, lat]);
+
+        // Update the marker element's inner HTML to reflect new heading & color
+        const el = marker.getElement();
+        el.innerHTML = `
+          ${arrowHtml}
+          <div style="
+            background-color: ${statusColor};
+            border: 2.5px solid ${isSelf ? '#38bdf8' : '#ffffff'};
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 14px ${isSelf ? 'rgba(56,189,248,0.9)' : 'rgba(0,0,0,0.6)'};
+            color: white;
+            font-weight: 800;
+            font-size: 14px;
+            position: relative;
+          ">
+            ${initial}
+            ${isOrg ? '<span style="position:absolute; top:-7px; right:-4px; font-size:11px;">👑</span>' : ''}
+          </div>
+        `;
+
         const popup = marker.getPopup();
         if (popup) {
           popup.setHTML(popupHtml);

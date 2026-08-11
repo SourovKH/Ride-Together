@@ -27,6 +27,7 @@ import { useRideStore } from '../store/useRideStore';
 import { useRideSocket } from '../hooks/useRideSocket';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { MapView } from '../components/MapView';
+import { getHaversineDistanceKm, formatDistance } from '../utils/distance';
 
 export const RideRoomPage: React.FC = () => {
   const { code } = useParams<{ code: string }>();
@@ -429,6 +430,29 @@ export const RideRoomPage: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Distance Calculations to Start & Destination */}
+                {currentRide && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '4px' }}>
+                    <div style={{ padding: '8px 10px', borderRadius: '8px', backgroundColor: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.2)', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
+                        <MapPin size={11} color="var(--accent-emerald)" /> To Start
+                      </div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-emerald)', marginTop: '2px' }}>
+                        {formatDistance(getHaversineDistanceKm(location.latitude, location.longitude, Number(currentRide.start.latitude), Number(currentRide.start.longitude)))}
+                      </div>
+                    </div>
+
+                    <div style={{ padding: '8px 10px', borderRadius: '8px', backgroundColor: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.2)', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
+                        <Navigation size={11} color="var(--accent-amber)" /> To Destination
+                      </div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-amber)', marginTop: '2px' }}>
+                        {formatDistance(getHaversineDistanceKm(location.latitude, location.longitude, Number(currentRide.destination.latitude), Number(currentRide.destination.longitude)))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'right', marginTop: '2px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
                   <Clock size={12} /> Updated {new Date(location.timestamp).toLocaleTimeString()}
                 </div>
@@ -461,6 +485,29 @@ export const RideRoomPage: React.FC = () => {
                 const pLoc = participantLocations[p.id];
                 const isLocFresh = pLoc && Date.now() - pLoc.timestamp < 35000;
 
+                const selfLoc = (session?.participantId && participantLocations[session.participantId]) || location;
+
+                let distanceBadgeText = '';
+                if (isSelf) {
+                  distanceBadgeText = 'You (Here)';
+                } else if (selfLoc && pLoc) {
+                  const distKm = getHaversineDistanceKm(
+                    Number(selfLoc.latitude),
+                    Number(selfLoc.longitude),
+                    Number(pLoc.latitude),
+                    Number(pLoc.longitude)
+                  );
+                  distanceBadgeText = `${formatDistance(distKm)} away`;
+                } else if (pLoc && currentRide?.start) {
+                  const distFromStartKm = getHaversineDistanceKm(
+                    Number(currentRide.start.latitude),
+                    Number(currentRide.start.longitude),
+                    Number(pLoc.latitude),
+                    Number(pLoc.longitude)
+                  );
+                  distanceBadgeText = `${formatDistance(distFromStartKm)} from start`;
+                }
+
                 return (
                   <div
                     key={p.id}
@@ -474,7 +521,7 @@ export const RideRoomPage: React.FC = () => {
                       border: isSelf ? '1px solid var(--border-glow)' : '1px solid var(--border-subtle)',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div
                           style={{
@@ -507,11 +554,19 @@ export const RideRoomPage: React.FC = () => {
                         </div>
                       </div>
 
-                      {isOrg && (
-                        <span className="badge" style={{ backgroundColor: 'rgba(217, 119, 6, 0.12)', color: 'var(--accent-amber)', fontSize: '0.8rem', border: '1px solid rgba(217, 119, 6, 0.25)' }}>
-                          <Crown size={12} style={{ display: 'inline', marginRight: '4px' }} /> Organizer
-                        </span>
-                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {isOrg && (
+                          <span className="badge" style={{ backgroundColor: 'rgba(217, 119, 6, 0.12)', color: 'var(--accent-amber)', fontSize: '0.8rem', border: '1px solid rgba(217, 119, 6, 0.25)' }}>
+                            <Crown size={12} style={{ display: 'inline', marginRight: '4px' }} /> Organizer
+                          </span>
+                        )}
+
+                        {distanceBadgeText && (
+                          <span className="badge" style={{ backgroundColor: isSelf ? 'rgba(56, 189, 248, 0.15)' : 'rgba(16, 185, 129, 0.12)', color: isSelf ? '#38bdf8' : 'var(--accent-emerald)', fontSize: '0.8rem', border: isSelf ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid rgba(16, 185, 129, 0.25)' }}>
+                            📍 {distanceBadgeText}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Live Rider Location Chip */}
